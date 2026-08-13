@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Performance Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#0E2233;
+    --navy2:#123049;
+    --paper:#F6F4EE;
+    --paper2:#FFFFFF;
+    --line:#DCD7C8;
+    --ink:#1B1F23;
+    --muted:#6B7280;
+    --teal:#0F8B7E;
+    --amber:#C98A2C;
+    --coral:#C24A38;
+    --chip:#EDE9DC;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);}
+  .app{max-width:1400px;margin:0 auto;padding:0 0 60px;}
+  header.top{background:var(--navy);color:#EFEAE0;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  header.top h1{font-size:19px;margin:0;letter-spacing:.3px;font-weight:700;}
+  header.top .sub{font-size:12px;color:#9FB0BE;margin-top:4px;}
+  .upload-wrap{display:flex;align-items:center;gap:12px;}
+  .upload-btn{background:var(--teal);color:#fff;border:none;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .upload-btn:hover{background:#0c7367;}
+  #fileInput{display:none;}
+  .period-chip{background:#1A3A54;border:1px solid #2A4F6C;color:#CFE0E8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;}
+  .status{font-size:12px;color:#9FB0BE;}
+
+  nav.tabs{display:flex;gap:4px;padding:14px 28px 0;background:var(--paper);border-bottom:1px solid var(--line);}
+  nav.tabs button{background:none;border:none;padding:10px 16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;}
+  nav.tabs button.active{color:var(--navy);border-bottom-color:var(--teal);}
+
+  .filters{display:flex;gap:10px;flex-wrap:wrap;padding:16px 28px;background:var(--paper2);border-bottom:1px solid var(--line);align-items:center;}
+  .filters .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-right:2px;}
+  .msel{position:relative;}
+  .msel-btn{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12.5px;cursor:pointer;color:var(--ink);min-width:120px;text-align:left;display:flex;justify-content:space-between;gap:8px;align-items:center;}
+  .msel-btn:hover{border-color:var(--teal);}
+  .msel-panel{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(14,34,51,.15);min-width:220px;max-height:320px;overflow:auto;z-index:50;padding:8px;display:none;}
+  .msel-panel.open{display:block;}
+  .msel-search{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:5px;font-size:12px;margin-bottom:6px;}
+  .msel-opt{display:flex;align-items:center;gap:8px;padding:5px 6px;font-size:12.5px;border-radius:4px;cursor:pointer;}
+  .msel-opt:hover{background:var(--paper);}
+  .msel-actions{display:flex;justify-content:space-between;padding:6px 4px 2px;border-top:1px solid var(--line);margin-top:4px;}
+  .msel-actions a{font-size:11px;color:var(--teal);cursor:pointer;text-decoration:none;font-weight:600;}
+  .reset-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12px;cursor:pointer;color:var(--coral);font-weight:600;margin-left:auto;}
+
+  main{padding:22px 28px;}
+  section.panel{background:var(--paper2);border:1px solid var(--line);border-radius:10px;margin-bottom:22px;overflow:hidden;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);}
+  .panel-head h2{font-size:14.5px;margin:0;font-weight:700;color:var(--navy2);}
+  .panel-head .hint{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .export-btn{background:var(--paper);border:1px solid var(--line);padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;color:var(--navy2);}
+  .export-btn:hover{border-color:var(--teal);color:var(--teal);}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{background:var(--chip);text-align:right;padding:9px 10px;font-weight:700;color:var(--navy2);white-space:nowrap;border-bottom:1px solid var(--line);position:sticky;top:0;}
+  th:first-child, th.name-col{text-align:left;}
+  td{padding:8px 10px;text-align:right;border-bottom:1px solid #EEEAE0;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  td.name-col{text-align:left;font-variant-numeric:normal;}
+  tr.div-row td{background:#F0F5F3;font-weight:700;color:var(--navy2);}
+  tr.hod-row td.name-col{padding-left:26px;color:var(--ink);}
+  tr.overall-row td{background:var(--navy);color:#fff;font-weight:900;font-size:13.5px;letter-spacing:.2px;}
+  tr.overall-row td .delta{font-weight:900;}
+  tr.overall-row td .delta.pos{color:#fff;background:#1DA05A;}
+  tr.overall-row td .delta.neg{color:#fff;background:#E05A44;}
+  tr.overall-row td .delta.flat{color:#fff;background:#5C7284;}
+  tr:hover td{background:#FAF8F2;}
+  tr.overall-row:hover td{background:var(--navy);}
+  .delta{font-weight:700;padding:2px 6px;border-radius:4px;font-size:11.5px;}
+  .delta.pos{color:#0F8B4F;background:#E6F5EC;}
+  .delta.neg{color:var(--coral);background:#FBEAE6;}
+  .delta.flat{color:var(--muted);background:#EEE;}
+  .group-sep th{border-top:2px solid var(--line);}
+
+  .sku-controls{display:flex;gap:10px;padding:12px 18px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);}
+  .sku-search{padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;min-width:240px;}
+  .table-scroll{max-height:560px;overflow:auto;}
+  th.sortable{cursor:pointer;}
+  th.sortable:hover{color:var(--teal);}
+  .pager{display:flex;justify-content:space-between;align-items:center;padding:10px 18px;font-size:12px;color:var(--muted);}
+  .pager button{background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:5px 10px;cursor:pointer;font-size:12px;margin:0 3px;}
+  .pager button:disabled{opacity:.4;cursor:not-allowed;}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--muted);}
+  .empty b{color:var(--navy2);}
+
+  .trend-cards{display:flex;gap:12px;overflow-x:auto;padding:16px 18px;}
+  .trend-card{min-width:200px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px;flex-shrink:0;}
+  .trend-card .d{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
+  .trend-metric{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:3px 0;}
+  .trend-metric .v{font-weight:700;}
+  .spark{padding:8px 18px 4px;}
+  .clear-hist{font-size:11px;color:var(--coral);cursor:pointer;background:none;border:none;font-weight:600;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Division · Business Head · CRP Performance</h1>
+      <div class="sub" id="periodLabel">No file uploaded yet</div>
+    </div>
+    <div class="upload-wrap">
+      <div class="status" id="statusLine"></div>
+      <div class="period-chip" id="rowCountChip" style="display:none;"></div>
+      <label class="upload-btn">
+        ⭱ Upload raw data (.xlsx)
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </label>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="sku">SKU Detail</button>
+    <button class="tab-btn" data-tab="cat3">Cat 3 Detail</button>
+    <button class="tab-btn" data-tab="trend">Day-on-Day Indicator</button>
+  </nav>
+
+  <div class="filters" id="filterBar">
+    <span class="lbl">Filters</span>
+    <div id="filterHost" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+    <button class="reset-btn" id="resetFilters">Reset filters</button>
+  </div>
+
+  <main>
+    <div id="tab-overview"></div>
+    <div id="tab-sku" style="display:none;"></div>
+    <div id="tab-cat3" style="display:none;"></div>
+    <div id="tab-trend" style="display:none;"></div>
+  </main>
+</div>
+
+<script>
+/* ---------------- STATE ---------------- */
+const State = {
+  rows: [],            // parsed sku-level rows for the currently loaded file
+  period: '',
+  filters: { division: new Set(), hod: new Set(), crp: new Set(), cat3: new Set() },
+  tab: 'overview',
+  sku: { page: 1, pageSize: 50, sortKey: 'salesT', sortDir: 'desc', search: '' },
+  cat3: { page: 1, pageSize: 50, sortKey: 'salesT', sortDir: 'desc', search: '' },
+  history: []           // [{date, uploadedAt, nsiT,nsiL,gpvT,gpvL,pvaT,pvaL,discT,discL}]
+};
+
+/* ---------------- HELPERS ---------------- */
+const fmtNum = n => (n==null||isNaN(n)) ? '-' : Math.round(n).toLocaleString('en-US');
+const fmtPct = (n,dp=2) => (n==null||isNaN(n)) ? '-' : n.toFixed(dp)+'%';
+function deltaSpan(n, goodIfPositive, isPP, dp=2){
+  if(n==null||isNaN(n)) return '<span class="delta flat">–</span>';
+  const cls = n>0.0001 ? (goodIfPositive?'pos':'neg') : n<-0.0001 ? (goodIfPositive?'neg':'pos') : 'flat';
+  const arrow = n>0.0001?'▲':n<-0.0001?'▼':'—';
+  const txt = (n>=0?'+':'')+n.toFixed(dp)+(isPP?' pp':'%');
+  return `<span class="delta ${cls}">${arrow} ${txt}</span>`;
+}
+function num(v){ const n = typeof v==='number'?v:parseFloat(v); return isNaN(n)?0:n; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function sumRows(rows){
+  const s={nsiT:0,nsiL:0,nsiLFull:0,gpvT:0,gpvL:0,pvaT:0,pvaL:0,discT:0,discL:0,count:rows.length};
+  for(const r of rows){
+    s.nsiT+=r.nsiT; s.nsiL+=r.nsiL; s.nsiLFull+=(r.nsiLFull||0);
+    s.gpvT+=r.gpvT; s.gpvL+=r.gpvL;
+    s.pvaT+=r.pvaT; s.pvaL+=r.pvaL; s.discT+=r.discT; s.discL+=r.discL;
+  }
+  return s;
+}
+// Sales This/Last/Growth use "POS NSI This" vs "POS NSI Last <date range>" (nsiL) -
+// a like-for-like matched date range. GPVA% Last and Discount% Last use
+// "POS NSI Last" (nsiLFull, the full last-year base) as their denominator.
+function metricsFromSums(s){
+  const gpvaT=s.gpvT+s.pvaT, gpvaL=s.gpvL+s.pvaL;
+  const gpvaPctT = s.nsiT? gpvaT/s.nsiT*100:0;
+  const gpvaPctL = s.nsiLFull? gpvaL/s.nsiLFull*100:0;
+  const discPctT = s.nsiT? s.discT/s.nsiT*100:0;
+  const discPctL = s.nsiLFull? s.discL/s.nsiLFull*100:0;
+  const salesGap = s.nsiL? (s.nsiT-s.nsiL)/s.nsiL*100:0;
+  return {
+    salesT:s.nsiT, salesL:s.nsiL, salesGap,
+    gpvaPctT, gpvaPctL, gpvaImprove: gpvaPctT-gpvaPctL,
+    discPctT, discPctL, discGap: discPctT-discPctL
+  };
+}
+function groupBy(rows, fn){
+  const m = new Map();
+  for(const r of rows){ const k=fn(r)||'(Blank)'; if(!m.has(k)) m.set(k,[]); m.get(k).push(r); }
+  return m;
+}
+function applyFilters(rows){
+  const f = State.filters;
+  return rows.filter(r =>
+    (f.division.size===0 || f.division.has(r.division)) &&
+    (f.hod.size===0 || f.hod.has(r.hod)) &&
+    (f.crp.size===0 || f.crp.has(r.crp)) &&
+    (f.cat3.size===0 || f.cat3.has(r.cat3))
+  );
+}
+function uniqSorted(rows, key){
+  return [...new Set(rows.map(r=>r[key]).filter(v=>v!==undefined))].sort((a,b)=>String(a).localeCompare(String(b)));
+}
+// Date labels look like "Aug 01-11", "Aug 01-12" etc. - the trailing number is
+// the day-of-month the cumulative period runs to. Pick the label with the
+// highest trailing day number as "latest". Falls back to the last item in a
+// plain alphabetical sort if the pattern doesn't match.
+function latestDateLabel(dates){
+  let best=null, bestNum=-1;
+  dates.forEach(d=>{
+    const m = String(d).match(/(\d{1,2})\s*$/);
+    const n = m ? parseInt(m[1],10) : null;
+    if(n!==null && n>bestNum){ bestNum=n; best=d; }
+  });
+  return best || [...dates].sort((a,b)=>String(a).localeCompare(String(b))).pop();
+}
+
+/* ---------------- FILE PARSING ---------------- */
+// Note: "POS NSI Last" (exact) = full-period last-year sales, used as the
+// denominator for GPVA% Last / Discount% Last. "POS NSI LAST <date range>"
+// (e.g. "POS NSI LAST 01-11") = last year's sales for the SAME matched date
+// range as "POS NSI This" - used only for Sales This/Last/Growth%. The date
+// range in that header text changes every day, so it's matched by prefix.
+const HEADER_MAP = {
+  'date':'date','article code':'code','name':'name','division':'division',
+  'cat 1':'cat1','cat3':'cat3','hod':'hod','crp':'crp',
+  'pos nsi this':'nsiT',
+  'pos nsi last':'nsiLFull',
+  'pos gpv this':'gpvT','pos gpv last':'gpvL',
+  'pva t':'pvaT','pva l':'pvaL',
+  'pos discount amount this':'discT','pos discount amount last':'discL'
+};
+function normHeader(h){ return String(h||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function resolveHeaderField(rawHeader){
+  const norm = normHeader(rawHeader);
+  if(HEADER_MAP[norm]) return HEADER_MAP[norm];
+  // "POS NSI LAST 01-11" style header: starts with "pos nsi last" but has
+  // extra text (a date range) beyond the exact "pos nsi last" match above.
+  if(norm.startsWith('pos nsi last') && norm !== 'pos nsi last') return 'nsiL';
+  if(norm.startsWith('pos nsi this') && norm !== 'pos nsi this') return 'nsiT';
+  return null;
+}
+
+async function handleFile(file){
+  setStatus('Reading file…');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const json = XLSX.utils.sheet_to_json(ws, {defval:0, raw:true});
+  if(!json.length){ setStatus('File appears empty.'); return; }
+
+  // build column key map from actual header keys present
+  const sampleKeys = Object.keys(json[0]);
+  const keyMap = {};
+  sampleKeys.forEach(k=>{ const field = resolveHeaderField(k); if(field) keyMap[k]=field; });
+  if(!Object.values(keyMap).includes('nsiL')){
+    setStatus('Warning: could not find a "POS NSI LAST <date range>" column - Sales Last/Growth will show as 0. Check file headers.');
+  }
+
+  const rows = json.map(r=>{
+    const o = {};
+    for(const k in keyMap) o[keyMap[k]] = r[k];
+    return {
+      date: String(o.date||'').trim(),
+      code: o.code, name: o.name,
+      division: String(o.division||'').trim(),
+      cat1: String(o.cat1||'').trim(),
+      cat3: String(o.cat3||'').trim(),
+      hod: String(o.hod||'').trim(),
+      crp: String(o.crp||'').trim(),
+      nsiT:num(o.nsiT), nsiL:num(o.nsiL), nsiLFull:num(o.nsiLFull),
+      gpvT:num(o.gpvT), gpvL:num(o.gpvL),
+      pvaT:num(o.pvaT), pvaL:num(o.pvaL),
+      discT:num(o.discT), discL:num(o.discL)
+    };
+  });
+
+  State.rows = rows;
+  const uniqueDates = uniqSorted(rows,'date').filter(d=>d);
+  let finalRows = rows;
+  let periodLabel = uniqueDates.join(', ') || '—';
+  let multiDateNote = '';
+  if(uniqueDates.length > 1){
+    const latest = latestDateLabel(uniqueDates);
+    finalRows = rows.filter(r=>r.date===latest);
+    periodLabel = latest;
+    multiDateNote = ` Note: the file contained ${uniqueDates.length} date tags (${uniqueDates.join(', ')}); only "${latest}" (the latest, already cumulative) was used — older-tagged rows were excluded to avoid double-counting.`;
+  }
+  State.rows = finalRows;
+  State.period = periodLabel;
+  State.filters = { division:new Set(), hod:new Set(), crp:new Set(), cat3:new Set() };
+  State.sku.page = 1; State.sku.search='';
+
+  await saveHistorySnapshot(rows);
+  setStatus('Loaded ' + finalRows.length.toLocaleString() + ' SKU rows.' + multiDateNote);
+  document.getElementById('periodLabel').textContent = 'Period: ' + State.period + ' · updated ' + new Date().toLocaleString();
+  const chip = document.getElementById('rowCountChip');
+  chip.style.display='inline-block'; chip.textContent = rows.length.toLocaleString()+' rows';
+
+  buildFilterBar();
+  renderAll();
+}
+
+function setStatus(t){ document.getElementById('statusLine').textContent = t; }
+
+/* ---------------- PERSISTENT HISTORY (day-on-day indicator) ---------------- */
+async function loadHistory(){
+  try{
+    const res = await window.storage.get('history', false);
+    State.history = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){ State.history = []; }
+}
+function dayNumOf(d){
+  const m = String(d).match(/(\d{1,2})\s*$/);
+  return m ? parseInt(m[1],10) : null;
+}
+// A single uploaded file can contain more than one date tag (e.g. some
+// leftover "Aug 01-11" rows alongside new "Aug 01-12" rows). Every distinct
+// date tag gets its own history entry, summed only over the rows carrying
+// that tag - so values are never added across dates, and re-uploading a
+// date that's already recorded simply refreshes that one card.
+async function saveHistorySnapshot(rows){
+  const byDate = groupBy(rows, r=>r.date);
+  for(const [date, dRows] of byDate){
+    if(!date) continue;
+    const s = sumRows(dRows);
+    const entry = { date, uploadedAt: Date.now(), ...s };
+    const idx = State.history.findIndex(h=>h.date===date);
+    if(idx>=0) State.history[idx]=entry; else State.history.push(entry);
+  }
+  State.history.sort((a,b)=>{
+    const na=dayNumOf(a.date), nb=dayNumOf(b.date);
+    if(na!==null && nb!==null && na!==nb) return na-nb;
+    return a.uploadedAt-b.uploadedAt;
+  });
+  try{ await window.storage.set('history', JSON.stringify(State.history), false); }catch(e){ console.error('storage save failed', e); }
+}
+async function clearHistory(){
+  State.history=[];
+  try{ await window.storage.delete('history', false); }catch(e){}
+  renderTrend();
+}
+
+/* ---------------- FILTER BAR ---------------- */
+function buildFilterBar(){
+  const host = document.getElementById('filterHost');
+  host.innerHTML='';
+  const defs = [
+    {key:'division', label:'Division'},
+    {key:'hod', label:'Business Head'},
+    {key:'crp', label:'CRP'},
+    {key:'cat3', label:'Cat 3'}
+  ];
+  defs.forEach(d=>{
+    const opts = uniqSorted(State.rows, d.key);
+    host.appendChild(buildMultiSelect(d.key, d.label, opts));
+  });
+}
+function buildMultiSelect(key, label, options){
+  const wrap = document.createElement('div'); wrap.className='msel';
+  const btn = document.createElement('button'); btn.className='msel-btn';
+  const panel = document.createElement('div'); panel.className='msel-panel';
+
+  function refreshBtn(){
+    const sel = State.filters[key];
+    btn.innerHTML = `<span>${label}${sel.size? ' ('+sel.size+')':' (All)'}</span><span>▾</span>`;
+  }
+  const needsSearch = options.length > 12;
+  let searchTerm='';
+  function renderPanel(){
+    panel.innerHTML='';
+    if(needsSearch){
+      const s=document.createElement('input');
+      s.className='msel-search'; s.placeholder='Search '+label+'…'; s.value=searchTerm;
+      s.addEventListener('input', e=>{ searchTerm=e.target.value.toLowerCase(); renderPanel(); });
+      panel.appendChild(s);
+    }
+    const list = document.createElement('div');
+    options.filter(o=>o.toLowerCase().includes(searchTerm)).forEach(o=>{
+      const row=document.createElement('label'); row.className='msel-opt';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=State.filters[key].has(o);
+      cb.addEventListener('change', ()=>{
+        if(cb.checked) State.filters[key].add(o); else State.filters[key].delete(o);
+        refreshBtn(); renderAll();
+      });
+      row.appendChild(cb);
+      const t=document.createElement('span'); t.textContent=o; row.appendChild(t);
+      list.appendChild(row);
+    });
+    panel.appendChild(list);
+    const actions=document.createElement('div'); actions.className='msel-actions';
+    const clearA=document.createElement('a'); clearA.textContent='Clear'; clearA.onclick=()=>{ State.filters[key].clear(); refreshBtn(); renderPanel(); renderAll(); };
+    actions.appendChild(clearA);
+    panel.appendChild(actions);
+    if(needsSearch){ const inp=panel.querySelector('.msel-search'); if(document.activeElement!==inp){} }
+  }
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    document.querySelectorAll('.msel-panel.open').forEach(p=>{ if(p!==panel) p.classList.remove('open'); });
+    panel.classList.toggle('open');
+  });
+  document.addEventListener('click', (e)=>{ if(!wrap.contains(e.target)) panel.classList.remove('open'); });
+  refreshBtn(); renderPanel();
+  wrap.appendChild(btn); wrap.appendChild(panel);
+  return wrap;
+}
+
+/* ---------------- RENDER: OVERVIEW ---------------- */
+function metricHeaderCells(){
+  return `
+    <th class="name-col">Name</th>
+    <th>Sales This</th><th>Sales Last</th><th>Sales Growth</th>
+    <th>GPVA% This</th><th>GPVA% Last</th><th>Improvement</th>
+    <th>Disc% This</th><th>Disc% Last</th><th>Disc Gap</th>`;
+}
+function metricRowCells(name, m, isTotal){
+  return `
+    <td class="name-col">${esc(name)}</td>
+    <td>${fmtNum(m.salesT)}</td><td>${fmtNum(m.salesL)}</td><td>${deltaSpan(m.salesGap,true,false)}</td>
+    <td>${fmtPct(m.gpvaPctT)}</td><td>${fmtPct(m.gpvaPctL)}</td><td>${deltaSpan(m.gpvaImprove,true,true)}</td>
+    <td>${fmtPct(m.discPctT)}</td><td>${fmtPct(m.discPctL)}</td><td>${deltaSpan(m.discGap,true,true)}</td>`;
+}
+
+function renderOverview(){
+  const host = document.getElementById('tab-overview');
+  if(!State.rows.length){ host.innerHTML = emptyState(); return; }
+  const filtered = applyFilters(State.rows);
+  const overall = metricsFromSums(sumRows(filtered));
+
+  // Table 1: Division -> Business Head
+  const byDiv = groupBy(filtered, r=>r.division);
+  const divKeys = [...byDiv.keys()].sort((a,b)=>{
+    const sa=sumRows(byDiv.get(a)).nsiT, sb=sumRows(byDiv.get(b)).nsiT; return sb-sa;
+  });
+  let t1 = `<div class="table-scroll"><table><thead><tr>${metricHeaderCells()}</tr></thead><tbody>`;
+  divKeys.forEach(div=>{
+    const divRows = byDiv.get(div);
+    const divM = metricsFromSums(sumRows(divRows));
+    t1 += `<tr class="div-row group-sep">${metricRowCells(div, divM)}</tr>`;
+    const byHod = groupBy(divRows, r=>r.hod);
+    const hodKeys = [...byHod.keys()].sort((a,b)=> sumRows(byHod.get(b)).nsiT - sumRows(byHod.get(a)).nsiT);
+    hodKeys.forEach(h=>{
+      const hM = metricsFromSums(sumRows(byHod.get(h)));
+      t1 += `<tr class="hod-row">${metricRowCells(h, hM)}</tr>`;
+    });
+  });
+  t1 += `<tr class="overall-row">${metricRowCells('OVERALL', overall)}</tr>`;
+  t1 += `</tbody></table></div>`;
+
+  // Table 2: CRP
+  const byCrp = groupBy(filtered, r=>r.crp);
+  const crpKeys = [...byCrp.keys()].sort((a,b)=> sumRows(byCrp.get(b)).nsiT - sumRows(byCrp.get(a)).nsiT);
+  let t2 = `<div class="table-scroll"><table><thead><tr>${metricHeaderCells()}</tr></thead><tbody>`;
+  crpKeys.forEach(c=>{
+    const m = metricsFromSums(sumRows(byCrp.get(c)));
+    t2 += `<tr>${metricRowCells(c, m)}</tr>`;
+  });
+  t2 += `<tr class="overall-row">${metricRowCells('OVERALL', overall)}</tr>`;
+  t2 += `</tbody></table></div>`;
+
+  host.innerHTML = `
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Division &amp; Business Head Performance</h2><div class="hint">GPVA% = (GPV+PVA)/NSI. Gap/Improvement shown in percentage points (pp).</div></div>
+        <button class="export-btn" id="exp1">Export CSV</button>
+      </div>
+      ${t1}
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>CRP Performance</h2><div class="hint">Same metrics, grouped by CRP.</div></div>
+        <button class="export-btn" id="exp2">Export CSV</button>
+      </div>
+      ${t2}
+    </section>`;
+
+  document.getElementById('exp1').onclick = ()=> exportGroupedCSV('division_business_head.csv', divKeys, byDiv, overall, true);
+  document.getElementById('exp2').onclick = ()=> exportGroupedCSV('crp_performance.csv', crpKeys, byCrp, overall, false);
+}
+
+function metricRowArray(name, m){
+  return [name, Math.round(m.salesT), Math.round(m.salesL), m.salesGap.toFixed(2),
+    m.gpvaPctT.toFixed(2), m.gpvaPctL.toFixed(2), m.gpvaImprove.toFixed(2),
+    m.discPctT.toFixed(2), m.discPctL.toFixed(2), m.discGap.toFixed(2)];
+}
+function exportGroupedCSV(filename, keys, byKey, overall, nested){
+  const header = ['Name','Sales This','Sales Last','Sales Growth %','GPVA% This','GPVA% Last','Improvement pp','Disc% This','Disc% Last','Disc Gap pp'];
+  const lines = [header];
+  keys.forEach(k=>{
+    const rows = byKey.get(k);
+    lines.push(metricRowArray(k, metricsFromSums(sumRows(rows))));
+    if(nested){
+      const byHod = groupBy(rows, r=>r.hod);
+      [...byHod.keys()].forEach(h=> lines.push(metricRowArray('  '+h, metricsFromSums(sumRows(byHod.get(h))))));
+    }
+  });
+  lines.push(metricRowArray('OVERALL', overall));
+  downloadCSV(filename, lines);
+}
+function downloadCSV(filename, lines){
+  const csv = lines.map(row=>row.map(v=>{
+    const s=String(v); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+
+function emptyState(){
+  return `<div class="empty"><b>No data loaded yet.</b><br>Upload the raw SKU-level .xlsx file using the button in the top right to build the dashboard.</div>`;
+}
+
+/* ---------------- RENDER: SKU DETAIL ---------------- */
+function skuMetrics(r){
+  const gpvaT = r.gpvT+r.pvaT, gpvaL=r.gpvL+r.pvaL;
+  const nsiLFull = r.nsiLFull||0;
+  return {
+    salesT:r.nsiT, salesL:r.nsiL, salesGap: r.nsiL? (r.nsiT-r.nsiL)/r.nsiL*100:0,
+    gpvaPctT: r.nsiT? gpvaT/r.nsiT*100:0, gpvaPctL: nsiLFull? gpvaL/nsiLFull*100:0,
+    gpvaImprove: (r.nsiT?gpvaT/r.nsiT*100:0) - (nsiLFull?gpvaL/nsiLFull*100:0),
+    discPctT: r.nsiT? r.discT/r.nsiT*100:0, discPctL: nsiLFull? r.discL/nsiLFull*100:0,
+    discGap: (r.nsiT?r.discT/r.nsiT*100:0) - (nsiLFull?r.discL/nsiLFull*100:0)
+  };
+}
+const SKU_COLS = [
+  {key:'code', label:'Code', numeric:false},
+  {key:'name', label:'Name', numeric:false},
+  {key:'division', label:'Division', numeric:false},
+  {key:'hod', label:'Business Head', numeric:false},
+  {key:'crp', label:'CRP', numeric:false},
+  {key:'cat3', label:'Cat 3', numeric:false},
+  {key:'salesT', label:'Sales This', numeric:true},
+  {key:'salesL', label:'Sales Last', numeric:true},
+  {key:'salesGap', label:'Sales Growth%', numeric:true},
+  {key:'gpvaPctT', label:'GPVA% This', numeric:true},
+  {key:'gpvaPctL', label:'GPVA% Last', numeric:true},
+  {key:'gpvaImprove', label:'Improve pp', numeric:true},
+  {key:'discPctT', label:'Disc% This', numeric:true},
+  {key:'discPctL', label:'Disc% Last', numeric:true},
+  {key:'discGap', label:'Disc Gap pp', numeric:true}
+];
+function renderSku(){
+  const host = document.getElementById('tab-sku');
+  if(!State.rows.length){ host.innerHTML = emptyState(); return; }
+  let filtered = applyFilters(State.rows).map(r=>({...r, ...skuMetrics(r)}));
+  const q = State.sku.search.trim().toLowerCase();
+  if(q) filtered = filtered.filter(r => String(r.name).toLowerCase().includes(q) || String(r.code).toLowerCase().includes(q));
+
+  const {sortKey, sortDir} = State.sku;
+  filtered.sort((a,b)=>{
+    let av=a[sortKey], bv=b[sortKey];
+    if(typeof av==='string'){ av=av.toLowerCase(); bv=String(bv).toLowerCase(); }
+    if(av<bv) return sortDir==='asc'?-1:1;
+    if(av>bv) return sortDir==='asc'?1:-1;
+    return 0;
+  });
+
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total/State.sku.pageSize));
+  State.sku.page = Math.min(State.sku.page, pages);
+  const start = (State.sku.page-1)*State.sku.pageSize;
+  const pageRows = filtered.slice(start, start+State.sku.pageSize);
+
+  let thead = '<tr>' + SKU_COLS.map(c=>{
+    const arrow = State.sku.sortKey===c.key ? (State.sku.sortDir==='asc'?' ▲':' ▼') : '';
+    return `<th class="sortable ${c.numeric?'':'name-col'}" data-key="${c.key}">${c.label}${arrow}</th>`;
+  }).join('') + '</tr>';
+
+  let tbody = pageRows.map(r=>{
+    return '<tr>' + SKU_COLS.map(c=>{
+      if(!c.numeric) return `<td class="name-col">${esc(r[c.key])}</td>`;
+      if(c.key==='salesT'||c.key==='salesL') return `<td>${fmtNum(r[c.key])}</td>`;
+      if(c.key==='salesGap'||c.key==='gpvaImprove'||c.key==='discGap') return `<td>${(r[c.key]>=0?'+':'')+r[c.key].toFixed(2)+(c.key==='salesGap'?'%':' pp')}</td>`;
+      return `<td>${fmtPct(r[c.key])}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+
+  host.innerHTML = `
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>SKU Level Detail</h2><div class="hint">${total.toLocaleString()} SKUs match current filters${q? ' and search':''}.</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="export-btn" id="expSkuCsv">Export CSV</button>
+          <button class="export-btn" id="expSkuXlsx">Export Excel</button>
+        </div>
+      </div>
+      <div class="sku-controls">
+        <input class="sku-search" id="skuSearch" placeholder="Search by SKU name or code…" value="${esc(State.sku.search)}">
+      </div>
+      <div class="table-scroll"><table><thead>${thead}</thead><tbody>${tbody || '<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:30px;">No matching SKUs.</td></tr>'}</tbody></table></div>
+      <div class="pager">
+        <span>Page ${State.sku.page} of ${pages}</span>
+        <span>
+          <button id="pFirst" ${State.sku.page===1?'disabled':''}>« First</button>
+          <button id="pPrev" ${State.sku.page===1?'disabled':''}>‹ Prev</button>
+          <button id="pNext" ${State.sku.page===pages?'disabled':''}>Next ›</button>
+          <button id="pLast" ${State.sku.page===pages?'disabled':''}>Last »</button>
+        </span>
+      </div>
+    </section>`;
+
+  document.getElementById('skuSearch').addEventListener('input', e=>{ State.sku.search=e.target.value; State.sku.page=1; renderSku(); });
+  host.querySelectorAll('th.sortable').forEach(th=> th.addEventListener('click', ()=>{
+    const k = th.dataset.key;
+    if(State.sku.sortKey===k) State.sku.sortDir = State.sku.sortDir==='asc'?'desc':'asc';
+    else { State.sku.sortKey=k; State.sku.sortDir = SKU_COLS.find(c=>c.key===k).numeric ? 'desc':'asc'; }
+    renderSku();
+  }));
+  document.getElementById('pFirst').onclick=()=>{ State.sku.page=1; renderSku(); };
+  document.getElementById('pPrev').onclick=()=>{ State.sku.page--; renderSku(); };
+  document.getElementById('pNext').onclick=()=>{ State.sku.page++; renderSku(); };
+  document.getElementById('pLast').onclick=()=>{ State.sku.page=pages; renderSku(); };
+  document.getElementById('expSkuCsv').onclick = ()=>{
+    const lines=[SKU_COLS.map(c=>c.label)];
+    filtered.forEach(r=> lines.push(SKU_COLS.map(c=> c.numeric ? Number(r[c.key]).toFixed(2) : r[c.key])));
+    downloadCSV('sku_detail.csv', lines);
+  };
+  document.getElementById('expSkuXlsx').onclick = ()=>{
+    const data = filtered.map(r=>{
+      const o={};
+      SKU_COLS.forEach(c=> o[c.label] = c.numeric? Number(r[c.key].toFixed(2)) : r[c.key]);
+      return o;
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'SKU Detail');
+    XLSX.writeFile(wb, 'sku_detail.xlsx');
+  };
+}
+
+/* ---------------- RENDER: CAT 3 DETAIL ---------------- */
+const CAT3_COLS = [
+  {key:'cat3', label:'Cat 3', numeric:false},
+  {key:'salesT', label:'Sales This', numeric:true},
+  {key:'salesL', label:'Sales Last', numeric:true},
+  {key:'salesGap', label:'Sales Growth%', numeric:true},
+  {key:'gpvaPctT', label:'GPVA% This', numeric:true},
+  {key:'gpvaPctL', label:'GPVA% Last', numeric:true},
+  {key:'gpvaImprove', label:'Improve pp', numeric:true},
+  {key:'discPctT', label:'Disc% This', numeric:true},
+  {key:'discPctL', label:'Disc% Last', numeric:true},
+  {key:'discGap', label:'Disc Gap pp', numeric:true}
+];
+function renderCat3(){
+  const host = document.getElementById('tab-cat3');
+  if(!State.rows.length){ host.innerHTML = emptyState(); return; }
+  const filteredRaw = applyFilters(State.rows);
+  const byCat3 = groupBy(filteredRaw, r=>r.cat3);
+  let data = [...byCat3.keys()].map(c3=>({ cat3:c3, ...metricsFromSums(sumRows(byCat3.get(c3))) }));
+
+  const q = State.cat3.search.trim().toLowerCase();
+  if(q) data = data.filter(r => String(r.cat3).toLowerCase().includes(q));
+
+  const {sortKey, sortDir} = State.cat3;
+  data.sort((a,b)=>{
+    let av=a[sortKey], bv=b[sortKey];
+    if(typeof av==='string'){ av=av.toLowerCase(); bv=String(bv).toLowerCase(); }
+    if(av<bv) return sortDir==='asc'?-1:1;
+    if(av>bv) return sortDir==='asc'?1:-1;
+    return 0;
+  });
+
+  const total = data.length;
+  const pages = Math.max(1, Math.ceil(total/State.cat3.pageSize));
+  State.cat3.page = Math.min(State.cat3.page, pages);
+  const start = (State.cat3.page-1)*State.cat3.pageSize;
+  const pageRows = data.slice(start, start+State.cat3.pageSize);
+
+  let thead = '<tr>' + CAT3_COLS.map(c=>{
+    const arrow = State.cat3.sortKey===c.key ? (State.cat3.sortDir==='asc'?' ▲':' ▼') : '';
+    return `<th class="sortable ${c.numeric?'':'name-col'}" data-key="${c.key}">${c.label}${arrow}</th>`;
+  }).join('') + '</tr>';
+
+  let tbody = pageRows.map(r=>{
+    return '<tr>' + CAT3_COLS.map(c=>{
+      if(!c.numeric) return `<td class="name-col">${esc(r[c.key])}</td>`;
+      if(c.key==='salesT'||c.key==='salesL') return `<td>${fmtNum(r[c.key])}</td>`;
+      if(c.key==='salesGap') return `<td>${deltaSpan(r[c.key],true,false)}</td>`;
+      if(c.key==='gpvaImprove') return `<td>${deltaSpan(r[c.key],true,true)}</td>`;
+      if(c.key==='discGap') return `<td>${deltaSpan(r[c.key],true,true)}</td>`;
+      return `<td>${fmtPct(r[c.key])}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+
+  host.innerHTML = `
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Cat 3 Level Detail</h2><div class="hint">${total.toLocaleString()} Cat 3 groups match current filters${q? ' and search':''}.</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="export-btn" id="expCat3Csv">Export CSV</button>
+          <button class="export-btn" id="expCat3Xlsx">Export Excel</button>
+        </div>
+      </div>
+      <div class="sku-controls">
+        <input class="sku-search" id="cat3Search" placeholder="Search by Cat 3 name…" value="${esc(State.cat3.search)}">
+      </div>
+      <div class="table-scroll"><table><thead>${thead}</thead><tbody>${tbody || '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px;">No matching Cat 3 groups.</td></tr>'}</tbody></table></div>
+      <div class="pager">
+        <span>Page ${State.cat3.page} of ${pages}</span>
+        <span>
+          <button id="c3First" ${State.cat3.page===1?'disabled':''}>« First</button>
+          <button id="c3Prev" ${State.cat3.page===1?'disabled':''}>‹ Prev</button>
+          <button id="c3Next" ${State.cat3.page===pages?'disabled':''}>Next ›</button>
+          <button id="c3Last" ${State.cat3.page===pages?'disabled':''}>Last »</button>
+        </span>
+      </div>
+    </section>`;
+
+  document.getElementById('cat3Search').addEventListener('input', e=>{ State.cat3.search=e.target.value; State.cat3.page=1; renderCat3(); });
+  host.querySelectorAll('th.sortable').forEach(th=> th.addEventListener('click', ()=>{
+    const k = th.dataset.key;
+    if(State.cat3.sortKey===k) State.cat3.sortDir = State.cat3.sortDir==='asc'?'desc':'asc';
+    else { State.cat3.sortKey=k; State.cat3.sortDir = CAT3_COLS.find(c=>c.key===k).numeric ? 'desc':'asc'; }
+    renderCat3();
+  }));
+  document.getElementById('c3First').onclick=()=>{ State.cat3.page=1; renderCat3(); };
+  document.getElementById('c3Prev').onclick=()=>{ State.cat3.page--; renderCat3(); };
+  document.getElementById('c3Next').onclick=()=>{ State.cat3.page++; renderCat3(); };
+  document.getElementById('c3Last').onclick=()=>{ State.cat3.page=pages; renderCat3(); };
+  document.getElementById('expCat3Csv').onclick = ()=>{
+    const lines=[CAT3_COLS.map(c=>c.label)];
+    data.forEach(r=> lines.push(CAT3_COLS.map(c=> c.numeric ? Number(r[c.key]).toFixed(2) : r[c.key])));
+    downloadCSV('cat3_detail.csv', lines);
+  };
+  document.getElementById('expCat3Xlsx').onclick = ()=>{
+    const out = data.map(r=>{
+      const o={};
+      CAT3_COLS.forEach(c=> o[c.label] = c.numeric? Number(r[c.key].toFixed(2)) : r[c.key]);
+      return o;
+    });
+    const ws = XLSX.utils.json_to_sheet(out);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Cat3 Detail');
+    XLSX.writeFile(wb, 'cat3_detail.xlsx');
+  };
+}
+
+
+/* ---------------- RENDER: TREND / DAY-ON-DAY INDICATOR ---------------- */
+function renderTrend(){
+  const host = document.getElementById('tab-trend');
+  if(!State.history.length){
+    host.innerHTML = `<section class="panel"><div class="empty"><b>No history yet.</b><br>Every time you upload a file, that day's overall Sales, GPVA% and Discount% are saved here automatically so you can track day-on-day movement (e.g. Aug 01-11 → Aug 01-12).</div></section>`;
+    return;
+  }
+  const withMetrics = State.history.map(h=>({...h, m: metricsFromSums(h)}));
+  let cards = '';
+  withMetrics.forEach((h,i)=>{
+    const prev = i>0 ? withMetrics[i-1] : null;
+    cards += `<div class="trend-card">
+      <div class="d">${esc(h.date)}</div>
+      <div class="trend-metric"><span>Sales</span><span class="v">${fmtNum(h.m.salesT)}</span></div>
+      ${prev? `<div style="text-align:right;">${deltaSpan(h.m.salesT-prev.m.salesT===0?0:(prev.m.salesT? (h.m.salesT-prev.m.salesT)/prev.m.salesT*100:0), true, false)}</div>` : ''}
+      <div class="trend-metric" style="margin-top:6px;"><span>GPVA%</span><span class="v">${fmtPct(h.m.gpvaPctT)}</span></div>
+      ${prev? `<div style="text-align:right;">${deltaSpan(h.m.gpvaPctT-prev.m.gpvaPctT, true, true)}</div>` : ''}
+      <div class="trend-metric" style="margin-top:6px;"><span>Discount%</span><span class="v">${fmtPct(h.m.discPctT)}</span></div>
+      ${prev? `<div style="text-align:right;">${deltaSpan(h.m.discPctT-prev.m.discPctT, true, true)}</div>` : ''}
+    </div>`;
+  });
+
+  let rows = withMetrics.map((h,i)=>{
+    const prev = i>0 ? withMetrics[i-1]:null;
+    return `<tr>
+      <td class="name-col">${esc(h.date)}</td>
+      <td>${fmtNum(h.m.salesT)}</td>
+      <td>${prev? deltaSpan(prev.m.salesT? (h.m.salesT-prev.m.salesT)/prev.m.salesT*100:0, true, false):'–'}</td>
+      <td>${fmtPct(h.m.gpvaPctT)}</td>
+      <td>${prev? deltaSpan(h.m.gpvaPctT-prev.m.gpvaPctT, true, true):'–'}</td>
+      <td>${fmtPct(h.m.discPctT)}</td>
+      <td>${prev? deltaSpan(h.m.discPctT-prev.m.discPctT, true, true):'–'}</td>
+    </tr>`;
+  }).join('');
+
+  host.innerHTML = `
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Day-on-Day Indicator</h2><div class="hint">Overall (unfiltered) figures captured automatically on every upload. Newest on the right.</div></div>
+        <button class="clear-hist" id="clearHist">Clear history</button>
+      </div>
+      <div class="trend-cards">${cards}</div>
+      <div class="table-scroll"><table><thead><tr>
+        <th class="name-col">Date range</th><th>Sales</th><th>Sales Δ</th><th>GPVA%</th><th>GPVA Δ (pp)</th><th>Discount%</th><th>Discount Δ (pp)</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>
+    </section>`;
+  document.getElementById('clearHist').onclick = ()=>{ if(confirm('Clear all saved history?')) clearHistory(); };
+}
+
+/* ---------------- TAB SWITCHING / MAIN RENDER ---------------- */
+function renderAll(){
+  renderOverview();
+  renderSku();
+  renderCat3();
+  renderTrend();
+}
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    State.tab = btn.dataset.tab;
+    ['overview','sku','cat3','trend'].forEach(t=> document.getElementById('tab-'+t).style.display = (t===State.tab)?'block':'none');
+  });
+});
+document.getElementById('resetFilters').addEventListener('click', ()=>{
+  State.filters = { division:new Set(), hod:new Set(), crp:new Set(), cat3:new Set() };
+  buildFilterBar(); renderAll();
+});
+document.getElementById('fileInput').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(f) handleFile(f);
+});
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  await loadHistory();
+  renderTrend();
+})();
+</script>
+</body>
+</html>
